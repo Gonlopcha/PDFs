@@ -25,12 +25,10 @@ PASO 2: COMPILAR CON NUITKA
    venv\Scripts\activate.bat
 
 2. Ejecuta el siguiente comando de Nuitka:
-   nuitka --windows-console-mode=disable --standalone --lto=yes --clang --follow-imports --remove-output --enable-plugin=tk-inter --include-package=core --include-package=gui --include-module=pypdf --include-module=pdf2docx --include-module=ttkbootstrap PDFTool.py
-
-   NOTA: Si tienes un icono (assets\pdf_tool_icon.ico), agrega al inicio:
-   --windows-icon-from-ico=assets\pdf_tool_icon.ico
+   nuitka --windows-icon-from-ico=icono.ico --windows-console-mode=disable --standalone --lto=yes --clang --follow-imports --remove-output --enable-plugin=pyside6 --include-package=core --include-package=gui --include-module=pypdf --include-module=pdf2docx --include-data-files=icono.ico=icono.ico --include-data-dir=assets=assets PDFTool.py
 
 3. Cuando termine, el ejecutable estara en la carpeta "PDFTool.dist".
+   El archivo PDFTool.exe ya tendra el icono incrustado.
 
 ---------------------------------------------------------
 PASO 3: VERIFICAR EL EJECUTABLE
@@ -42,6 +40,10 @@ PASO 3: VERIFICAR EL EJECUTABLE
    - Dividir PDF
    - Unir PDFs
    - Convertir a Word
+4. Verifica que el icono aparezca en:
+   - La barra de titulo de la ventana
+   - La barra de tareas de Windows
+   - El archivo .exe en el explorador
 
 ---------------------------------------------------------
 PASO 4: CREAR EL INSTALADOR (Opcional)
@@ -51,3 +53,5 @@ PASO 4: CREAR EL INSTALADOR (Opcional)
 2. Abre el archivo "scripts_compilacion\InstaladorPDFTool.iss"
 3. Compila el script (Ctrl+F9 o menu Build > Compile)
 4. El instalador se generara en la carpeta "instalador"
+   con el icono de PDF Tool visible en el instalador,
+   acceso directo del escritorio y menu inicio.

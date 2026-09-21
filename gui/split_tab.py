@@ -24,9 +24,9 @@ class SplitWorker(QThread):
                 self.progress.emit(current, total)
                 
             if self.split_type == "ranges":
-                split_by_ranges(self.input_pdf, self.output_dir, self.param, callback=callback)
+                split_by_ranges(self.input_pdf, self.param, self.output_dir, callback=callback)
             elif self.split_type == "every_n":
-                split_every_n(self.input_pdf, self.output_dir, int(self.param), callback=callback)
+                split_every_n(self.input_pdf, int(self.param), self.output_dir, callback=callback)
             elif self.split_type == "all":
                 split_all(self.input_pdf, self.output_dir, callback=callback)
                 

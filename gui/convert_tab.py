@@ -1,147 +1,121 @@
-"""Pestaña de conversión de PDF a Word."""
-
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
-from tkinter import filedialog, messagebox
-import threading
-
+import traceback
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
+                               QPushButton, QFileDialog, QListWidget, QProgressBar, 
+                               QMessageBox, QAbstractItemView)
+from PySide6.QtCore import QThread, Signal
 from core.converter import convert_batch
 
+class ConvertWorker(QThread):
+    progress = Signal(int, int)
+    finished = Signal(str)
+    error = Signal(str)
 
-class ConvertTab(ttk.Frame):
-    def __init__(self, parent):
-        super().__init__(parent, padding=20)
+    def __init__(self, pdf_list, output_dir):
+        super().__init__()
+        self.pdf_list = pdf_list
+        self.output_dir = output_dir
 
-        self.output_dir = ttk.StringVar()
-
-        # Variables de progreso compartidas con el hilo
-        self.current_progress = 0
-        self.total_steps = 1
-        self.thread_done = False
-        self.thread_success = False
-        self.thread_error = ""
-        self.result_files = []
-
-        self._build_ui()
-
-    def _build_ui(self):
-        # Archivos PDF a convertir
-        lf_input = ttk.LabelFrame(self, text='Archivos PDF a convertir', padding=10)
-        lf_input.pack(fill=BOTH, expand=YES, pady=(0, 15))
-
-        self.listbox = ttk.Treeview(lf_input, show='tree')
-        self.listbox.pack(side=LEFT, fill=BOTH, expand=YES)
-
-        scrollbar = ttk.Scrollbar(lf_input, orient=VERTICAL, command=self.listbox.yview)
-        scrollbar.pack(side=LEFT, fill=Y)
-        self.listbox.configure(yscrollcommand=scrollbar.set)
-
-        btn_frame = ttk.Frame(lf_input)
-        btn_frame.pack(side=RIGHT, fill=Y, padx=(10, 0))
-
-        ttk.Button(btn_frame, text='➕ Agregar', command=self._agregar).pack(fill=X, pady=2)
-        ttk.Button(btn_frame, text='❌ Quitar', command=self._quitar, bootstyle='danger').pack(fill=X, pady=2)
-
-        # Carpeta de salida
-        lf_output = ttk.LabelFrame(self, text='Carpeta de salida', padding=10)
-        lf_output.pack(fill=X, pady=(0, 15))
-
-        ttk.Entry(lf_output, textvariable=self.output_dir).pack(side=LEFT, fill=X, expand=YES, padx=(0, 10))
-        ttk.Button(lf_output, text='Examinar...', command=self._browse_output).pack(side=RIGHT)
-
-        # Barra de progreso
-        self.progress = ttk.Progressbar(self, mode='determinate', bootstyle='success-striped')
-        self.progress.pack(fill=X, pady=(10, 20))
-
-        # Botón ejecutar
-        self.btn_convert = ttk.Button(self, text='📝 Convertir a Word', bootstyle='primary', command=self._ejecutar)
-        self.btn_convert.pack(fill=X, ipady=10)
-
-        # Estado
-        self.status_lbl = ttk.Label(self, text='Listo')
-        self.status_lbl.pack(pady=(10, 0))
-
-    def _agregar(self):
-        filenames = filedialog.askopenfilenames(filetypes=[("Archivos PDF", "*.pdf")])
-        for f in filenames:
-            self.listbox.insert('', END, text=f)
-
-    def _quitar(self):
-        selected = self.listbox.selection()
-        for item in selected:
-            self.listbox.delete(item)
-
-    def _browse_output(self):
-        directory = filedialog.askdirectory()
-        if directory:
-            self.output_dir.set(directory)
-
-    def _ejecutar(self):
-        """Valida las entradas y lanza la conversión en un hilo."""
-        files = [self.listbox.item(i, 'text') for i in self.listbox.get_children()]
-        if not files:
-            messagebox.showwarning("Faltan archivos", "Agregue al menos un archivo PDF para convertir.")
-            return
-        if not self.output_dir.get().strip():
-            messagebox.showwarning("Faltan datos", "Por favor seleccione la carpeta de salida.")
-            return
-
-        self.btn_convert.config(state=DISABLED)
-        self.progress['value'] = 0
-        self.current_progress = 0
-        self.total_steps = 1
-        self.thread_done = False
-        self.thread_success = False
-        self.thread_error = ""
-        self.result_files = []
-        self.status_lbl.config(text='Convirtiendo PDFs...')
-
-        thread = threading.Thread(
-            target=self._run_convert_task,
-            args=(files, self.output_dir.get().strip()),
-            daemon=True
-        )
-        thread.start()
-
-        self.winfo_toplevel().after(100, self._check_progress)
-
-    def _progress_callback(self, current, total):
-        """Callback que el hilo invoca para reportar progreso."""
-        self.current_progress = current
-        self.total_steps = total
-
-    def _run_convert_task(self, files, output_dir):
-        """Ejecuta la conversión real de PDFs a Word en un hilo secundario."""
+    def run(self):
         try:
-            self.result_files = convert_batch(
-                files, output_dir, callback=self._progress_callback
-            )
-            self.thread_success = True
+            def callback(current, total):
+                self.progress.emit(current, total)
+                
+            convert_batch(self.pdf_list, self.output_dir, callback=callback)
+            self.finished.emit("PDFs converted successfully.")
         except Exception as e:
-            self.thread_error = str(e)
-            self.thread_success = False
-        finally:
-            self.thread_done = True
+            self.error.emit(f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}")
 
-    def _check_progress(self):
-        """Polling desde el hilo principal para actualizar la barra de progreso."""
-        if self.total_steps > 0:
-            pct = int((self.current_progress / self.total_steps) * 100)
-            self.progress['value'] = pct
+class ConvertTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setup_ui()
 
-        if self.thread_done:
-            self.progress['value'] = 100
-            self.btn_convert.config(state=NORMAL)
-            if self.thread_success:
-                n = len(self.result_files)
-                self.status_lbl.config(text=f'¡Conversión completada! {n} archivo(s) convertido(s).')
-                messagebox.showinfo(
-                    "Éxito",
-                    f"Los PDFs se convirtieron correctamente.\n\n"
-                    f"Se generaron {n} archivo(s) .docx en:\n{self.output_dir.get()}"
-                )
-            else:
-                self.status_lbl.config(text='Error al convertir')
-                messagebox.showerror("Error", f"Ocurrió un error:\n{self.thread_error}")
-        else:
-            self.winfo_toplevel().after(100, self._check_progress)
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        # List of PDFs
+        h_layout_list = QHBoxLayout()
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        h_layout_list.addWidget(self.list_widget)
+
+        # Buttons for list
+        v_layout_btns = QVBoxLayout()
+        self.add_btn = QPushButton("Add PDFs")
+        self.add_btn.clicked.connect(self.add_pdfs)
+        self.remove_btn = QPushButton("Remove Selected")
+        self.remove_btn.clicked.connect(self.remove_pdfs)
+        
+        v_layout_btns.addWidget(self.add_btn)
+        v_layout_btns.addWidget(self.remove_btn)
+        v_layout_btns.addStretch()
+        h_layout_list.addLayout(v_layout_btns)
+        
+        layout.addLayout(h_layout_list)
+
+        # Output Dir
+        h_layout_out = QHBoxLayout()
+        self.output_label = QLabel("Output Dir:")
+        self.output_edit = QLineEdit()
+        self.output_btn = QPushButton("Browse")
+        self.output_btn.clicked.connect(self.browse_output)
+        h_layout_out.addWidget(self.output_label)
+        h_layout_out.addWidget(self.output_edit)
+        h_layout_out.addWidget(self.output_btn)
+        layout.addLayout(h_layout_out)
+
+        # Run Button
+        self.run_btn = QPushButton("Convert to Word")
+        self.run_btn.clicked.connect(self.run_convert)
+        layout.addWidget(self.run_btn)
+
+        # Progress
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
+
+    def add_pdfs(self):
+        files, _ = QFileDialog.getOpenFileNames(self, "Select PDFs", "", "PDF Files (*.pdf)")
+        if files:
+            self.list_widget.addItems(files)
+
+    def remove_pdfs(self):
+        for item in self.list_widget.selectedItems():
+            self.list_widget.takeItem(self.list_widget.row(item))
+
+    def browse_output(self):
+        dir = QFileDialog.getExistingDirectory(self, "Select Output Directory")
+        if dir:
+            self.output_edit.setText(dir)
+
+    def run_convert(self):
+        pdf_list = [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
+        output_dir = self.output_edit.text()
+
+        if not pdf_list or not output_dir:
+            QMessageBox.warning(self, "Warning", "Please add PDFs and specify output directory.")
+            return
+
+        self.run_btn.setEnabled(False)
+        self.progress_bar.setValue(0)
+        
+        self.worker = ConvertWorker(pdf_list, output_dir)
+        self.worker.progress.connect(self.update_progress)
+        self.worker.finished.connect(self.on_finished)
+        self.worker.error.connect(self.on_error)
+        self.worker.start()
+
+    def update_progress(self, current, total):
+        if total > 0:
+            val = int((current / total) * 100)
+            self.progress_bar.setValue(val)
+
+    def on_finished(self, msg):
+        self.progress_bar.setValue(100)
+        QMessageBox.information(self, "Success", msg)
+        self.run_btn.setEnabled(True)
+
+    def on_error(self, err):
+        self.progress_bar.setValue(0)
+        self.run_btn.setEnabled(True)
+        QMessageBox.critical(self, "Error", f"An error occurred:\n{err}")

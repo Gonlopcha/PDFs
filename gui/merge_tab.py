@@ -1,161 +1,141 @@
-"""Pestaña de unión de PDFs."""
-
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
-from tkinter import filedialog, messagebox
-import threading
-
+import traceback
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
+                               QPushButton, QFileDialog, QListWidget, QProgressBar, 
+                               QMessageBox, QAbstractItemView)
+from PySide6.QtCore import QThread, Signal
 from core.merger import merge_pdfs
 
+class MergeWorker(QThread):
+    progress = Signal(int, int)
+    finished = Signal(str)
+    error = Signal(str)
 
-class MergeTab(ttk.Frame):
-    def __init__(self, parent):
-        super().__init__(parent, padding=20)
+    def __init__(self, pdf_list, output_file):
+        super().__init__()
+        self.pdf_list = pdf_list
+        self.output_file = output_file
 
-        self.output_file = ttk.StringVar()
-
-        # Variables de progreso compartidas con el hilo
-        self.current_progress = 0
-        self.total_steps = 1
-        self.thread_done = False
-        self.thread_success = False
-        self.thread_error = ""
-
-        self._build_ui()
-
-    def _build_ui(self):
-        # Archivos PDF a unir
-        lf_input = ttk.LabelFrame(self, text='Archivos PDF a unir', padding=10)
-        lf_input.pack(fill=BOTH, expand=YES, pady=(0, 15))
-
-        self.listbox = ttk.Treeview(lf_input, show='tree')
-        self.listbox.pack(side=LEFT, fill=BOTH, expand=YES)
-
-        scrollbar = ttk.Scrollbar(lf_input, orient=VERTICAL, command=self.listbox.yview)
-        scrollbar.pack(side=LEFT, fill=Y)
-        self.listbox.configure(yscrollcommand=scrollbar.set)
-
-        btn_frame = ttk.Frame(lf_input)
-        btn_frame.pack(side=RIGHT, fill=Y, padx=(10, 0))
-
-        ttk.Button(btn_frame, text='➕ Agregar', command=self._agregar).pack(fill=X, pady=2)
-        ttk.Button(btn_frame, text='⬆ Subir', command=self._subir).pack(fill=X, pady=2)
-        ttk.Button(btn_frame, text='⬇ Bajar', command=self._bajar).pack(fill=X, pady=2)
-        ttk.Button(btn_frame, text='❌ Quitar', command=self._quitar, bootstyle='danger').pack(fill=X, pady=2)
-
-        # Archivo de salida
-        lf_output = ttk.LabelFrame(self, text='Archivo de salida', padding=10)
-        lf_output.pack(fill=X, pady=(0, 15))
-
-        ttk.Entry(lf_output, textvariable=self.output_file).pack(side=LEFT, fill=X, expand=YES, padx=(0, 10))
-        ttk.Button(lf_output, text='Examinar...', command=self._browse_output).pack(side=RIGHT)
-
-        # Barra de progreso
-        self.progress = ttk.Progressbar(self, mode='determinate', bootstyle='success-striped')
-        self.progress.pack(fill=X, pady=(10, 20))
-
-        # Botón ejecutar
-        self.btn_merge = ttk.Button(self, text='📎 Unir PDFs', bootstyle='primary', command=self._ejecutar)
-        self.btn_merge.pack(fill=X, ipady=10)
-
-        # Estado
-        self.status_lbl = ttk.Label(self, text='Listo')
-        self.status_lbl.pack(pady=(10, 0))
-
-    def _agregar(self):
-        filenames = filedialog.askopenfilenames(filetypes=[("Archivos PDF", "*.pdf")])
-        for f in filenames:
-            self.listbox.insert('', END, text=f)
-
-    def _subir(self):
-        selected = self.listbox.selection()
-        for item in selected:
-            idx = self.listbox.index(item)
-            if idx > 0:
-                self.listbox.move(item, '', idx - 1)
-
-    def _bajar(self):
-        selected = self.listbox.selection()
-        for item in reversed(selected):
-            idx = self.listbox.index(item)
-            if idx < len(self.listbox.get_children()) - 1:
-                self.listbox.move(item, '', idx + 1)
-
-    def _quitar(self):
-        selected = self.listbox.selection()
-        for item in selected:
-            self.listbox.delete(item)
-
-    def _browse_output(self):
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            filetypes=[("Archivos PDF", "*.pdf")]
-        )
-        if filename:
-            self.output_file.set(filename)
-
-    def _ejecutar(self):
-        """Valida las entradas y lanza la unión en un hilo."""
-        files = [self.listbox.item(i, 'text') for i in self.listbox.get_children()]
-        if len(files) < 2:
-            messagebox.showwarning("Faltan archivos", "Debe agregar al menos dos archivos PDF para unir.")
-            return
-        if not self.output_file.get().strip():
-            messagebox.showwarning("Faltan datos", "Por favor seleccione el archivo de salida.")
-            return
-
-        self.btn_merge.config(state=DISABLED)
-        self.progress['value'] = 0
-        self.current_progress = 0
-        self.total_steps = 1
-        self.thread_done = False
-        self.thread_success = False
-        self.thread_error = ""
-        self.status_lbl.config(text='Uniendo PDFs...')
-
-        thread = threading.Thread(
-            target=self._run_merge_task,
-            args=(files, self.output_file.get().strip()),
-            daemon=True
-        )
-        thread.start()
-
-        self.winfo_toplevel().after(100, self._check_progress)
-
-    def _progress_callback(self, current, total):
-        """Callback que el hilo invoca para reportar progreso."""
-        self.current_progress = current
-        self.total_steps = total
-
-    def _run_merge_task(self, files, output):
-        """Ejecuta la unión real de PDFs en un hilo secundario."""
+    def run(self):
         try:
-            merge_pdfs(files, output, callback=self._progress_callback)
-            self.thread_success = True
+            def callback(current, total):
+                self.progress.emit(current, total)
+                
+            merge_pdfs(self.pdf_list, self.output_file, callback=callback)
+            self.finished.emit("PDFs merged successfully.")
         except Exception as e:
-            self.thread_error = str(e)
-            self.thread_success = False
-        finally:
-            self.thread_done = True
+            self.error.emit(f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}")
 
-    def _check_progress(self):
-        """Polling desde el hilo principal para actualizar la barra de progreso."""
-        if self.total_steps > 0:
-            pct = int((self.current_progress / self.total_steps) * 100)
-            self.progress['value'] = pct
+class MergeTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setup_ui()
 
-        if self.thread_done:
-            self.progress['value'] = 100
-            self.btn_merge.config(state=NORMAL)
-            if self.thread_success:
-                self.status_lbl.config(text='¡Unión completada con éxito!')
-                messagebox.showinfo(
-                    "Éxito",
-                    f"Los PDFs se unieron correctamente.\n\n"
-                    f"Archivo generado:\n{self.output_file.get()}"
-                )
-            else:
-                self.status_lbl.config(text='Error al unir')
-                messagebox.showerror("Error", f"Ocurrió un error:\n{self.thread_error}")
-        else:
-            self.winfo_toplevel().after(100, self._check_progress)
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        # List of PDFs
+        h_layout_list = QHBoxLayout()
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        h_layout_list.addWidget(self.list_widget)
+
+        # Buttons for list
+        v_layout_btns = QVBoxLayout()
+        self.add_btn = QPushButton("Add PDFs")
+        self.add_btn.clicked.connect(self.add_pdfs)
+        self.remove_btn = QPushButton("Remove Selected")
+        self.remove_btn.clicked.connect(self.remove_pdfs)
+        self.up_btn = QPushButton("Move Up")
+        self.up_btn.clicked.connect(self.move_up)
+        self.down_btn = QPushButton("Move Down")
+        self.down_btn.clicked.connect(self.move_down)
+        
+        v_layout_btns.addWidget(self.add_btn)
+        v_layout_btns.addWidget(self.remove_btn)
+        v_layout_btns.addWidget(self.up_btn)
+        v_layout_btns.addWidget(self.down_btn)
+        v_layout_btns.addStretch()
+        h_layout_list.addLayout(v_layout_btns)
+        
+        layout.addLayout(h_layout_list)
+
+        # Output File
+        h_layout_out = QHBoxLayout()
+        self.output_label = QLabel("Output PDF:")
+        self.output_edit = QLineEdit()
+        self.output_btn = QPushButton("Browse")
+        self.output_btn.clicked.connect(self.browse_output)
+        h_layout_out.addWidget(self.output_label)
+        h_layout_out.addWidget(self.output_edit)
+        h_layout_out.addWidget(self.output_btn)
+        layout.addLayout(h_layout_out)
+
+        # Run Button
+        self.run_btn = QPushButton("Merge PDFs")
+        self.run_btn.clicked.connect(self.run_merge)
+        layout.addWidget(self.run_btn)
+
+        # Progress
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
+
+    def add_pdfs(self):
+        files, _ = QFileDialog.getOpenFileNames(self, "Select PDFs", "", "PDF Files (*.pdf)")
+        if files:
+            self.list_widget.addItems(files)
+
+    def remove_pdfs(self):
+        for item in self.list_widget.selectedItems():
+            self.list_widget.takeItem(self.list_widget.row(item))
+
+    def move_up(self):
+        current_row = self.list_widget.currentRow()
+        if current_row > 0:
+            item = self.list_widget.takeItem(current_row)
+            self.list_widget.insertItem(current_row - 1, item)
+            self.list_widget.setCurrentRow(current_row - 1)
+
+    def move_down(self):
+        current_row = self.list_widget.currentRow()
+        if current_row < self.list_widget.count() - 1 and current_row != -1:
+            item = self.list_widget.takeItem(current_row)
+            self.list_widget.insertItem(current_row + 1, item)
+            self.list_widget.setCurrentRow(current_row + 1)
+
+    def browse_output(self):
+        file, _ = QFileDialog.getSaveFileName(self, "Save Output PDF", "", "PDF Files (*.pdf)")
+        if file:
+            self.output_edit.setText(file)
+
+    def run_merge(self):
+        pdf_list = [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
+        output_file = self.output_edit.text()
+
+        if not pdf_list or not output_file:
+            QMessageBox.warning(self, "Warning", "Please add PDFs and specify output file.")
+            return
+
+        self.run_btn.setEnabled(False)
+        self.progress_bar.setValue(0)
+        
+        self.worker = MergeWorker(pdf_list, output_file)
+        self.worker.progress.connect(self.update_progress)
+        self.worker.finished.connect(self.on_finished)
+        self.worker.error.connect(self.on_error)
+        self.worker.start()
+
+    def update_progress(self, current, total):
+        if total > 0:
+            val = int((current / total) * 100)
+            self.progress_bar.setValue(val)
+
+    def on_finished(self, msg):
+        self.progress_bar.setValue(100)
+        QMessageBox.information(self, "Success", msg)
+        self.run_btn.setEnabled(True)
+
+    def on_error(self, err):
+        self.progress_bar.setValue(0)
+        self.run_btn.setEnabled(True)
+        QMessageBox.critical(self, "Error", f"An error occurred:\n{err}")

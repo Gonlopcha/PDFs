@@ -1,26 +1,21 @@
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+from PySide6.QtWidgets import QMainWindow, QTabWidget, QWidget, QVBoxLayout
 from gui.split_tab import SplitTab
 from gui.merge_tab import MergeTab
 from gui.convert_tab import ConvertTab
 
-class PDFToolApp(ttk.Window):
+class PDFToolApp(QMainWindow):
     def __init__(self):
-        super().__init__(title='PDF Tool - Herramienta PDF', themename='cosmo', size=(750, 550), resizable=(True, True))
-        self.minsize(650, 450)
+        super().__init__()
+        self.setWindowTitle("PDF Tool")
+        self.resize(800, 600)
         
-        self.place_window_center()
-
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=BOTH, expand=YES, padx=10, pady=10)
-
-        self.split_tab = SplitTab(self.notebook)
-        self.merge_tab = MergeTab(self.notebook)
-        self.convert_tab = ConvertTab(self.notebook)
-
-        self.notebook.add(self.split_tab, text='  ✂ Dividir  ')
-        self.notebook.add(self.merge_tab, text='  📎 Unir  ')
-        self.notebook.add(self.convert_tab, text='  📝 Convertir  ')
-
-    def run(self):
-        self.mainloop()
+        self.tabs = QTabWidget()
+        self.setCentralWidget(self.tabs)
+        
+        self.split_tab = SplitTab()
+        self.merge_tab = MergeTab()
+        self.convert_tab = ConvertTab()
+        
+        self.tabs.addTab(self.split_tab, "Split PDF")
+        self.tabs.addTab(self.merge_tab, "Merge PDFs")
+        self.tabs.addTab(self.convert_tab, "Convert to Word")

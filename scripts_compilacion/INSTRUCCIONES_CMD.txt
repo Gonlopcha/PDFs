@@ -1,0 +1,53 @@
+INSTRUCCIONES PARA COMPILAR PDF TOOL DESDE CMD
+================================================
+
+Ya tienes creado un entorno virtual en la raiz de tu proyecto:
+1. venv (Usa Python 3.14)
+
+A continuacion tienes los comandos exactos que debes copiar y pegar
+en tu CMD estando en la carpeta raiz del proyecto
+(C:\Users\gonzalo.lopez\Documents\GitHub\PDFs):
+
+---------------------------------------------------------
+PASO 1: CREAR EL ENTORNO VIRTUAL (solo la primera vez)
+---------------------------------------------------------
+
+   python -m venv venv
+   venv\Scripts\activate.bat
+   pip install -r requirements.txt
+   pip install nuitka
+
+---------------------------------------------------------
+PASO 2: COMPILAR CON NUITKA
+---------------------------------------------------------
+
+1. Activa el entorno virtual:
+   venv\Scripts\activate.bat
+
+2. Ejecuta el siguiente comando de Nuitka:
+   nuitka --windows-console-mode=disable --standalone --lto=yes --clang --follow-imports --remove-output --enable-plugin=tk-inter --include-package=core --include-package=gui --include-module=pypdf --include-module=pdf2docx --include-module=ttkbootstrap PDFTool.py
+
+   NOTA: Si tienes un icono (assets\pdf_tool_icon.ico), agrega al inicio:
+   --windows-icon-from-ico=assets\pdf_tool_icon.ico
+
+3. Cuando termine, el ejecutable estara en la carpeta "PDFTool.dist".
+
+---------------------------------------------------------
+PASO 3: VERIFICAR EL EJECUTABLE
+---------------------------------------------------------
+
+1. Ve a la carpeta "PDFTool.dist"
+2. Ejecuta "PDFTool.exe"
+3. Verifica que las 3 pestañas funcionen:
+   - Dividir PDF
+   - Unir PDFs
+   - Convertir a Word
+
+---------------------------------------------------------
+PASO 4: CREAR EL INSTALADOR (Opcional)
+---------------------------------------------------------
+
+1. Instala Inno Setup desde: https://jrsoftware.org/isdl.php
+2. Abre el archivo "scripts_compilacion\InstaladorPDFTool.iss"
+3. Compila el script (Ctrl+F9 o menu Build > Compile)
+4. El instalador se generara en la carpeta "instalador"

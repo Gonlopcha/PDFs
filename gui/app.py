@@ -5,6 +5,7 @@ from PySide6.QtGui import QIcon
 from gui.split_tab import SplitTab
 from gui.merge_tab import MergeTab
 from gui.convert_tab import ConvertTab
+from gui.excel_convert_tab import ExcelConvertTab
 
 
 def _find_icon():
@@ -42,7 +43,9 @@ class PDFToolApp(QMainWindow):
         self.split_tab = SplitTab()
         self.merge_tab = MergeTab()
         self.convert_tab = ConvertTab()
+        self.excel_convert_tab = ExcelConvertTab()
         
         self.tabs.addTab(self.split_tab, "Split PDF")
         self.tabs.addTab(self.merge_tab, "Merge PDFs")
         self.tabs.addTab(self.convert_tab, "Convert to Word")
+        self.tabs.addTab(self.excel_convert_tab, "Excel to PDF")

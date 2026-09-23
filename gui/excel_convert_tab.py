@@ -12,11 +12,14 @@ class ExcelConvertWorker(QThread):
     finished = Signal(str)
     error = Signal(str)
 
-    def __init__(self, excel_list, output_dir, orientation):
+    def __init__(self, excel_list, output_dir, orientation, paper_size, margin_size, alignment):
         super().__init__()
         self.excel_list = excel_list
         self.output_dir = output_dir
         self.orientation = orientation
+        self.paper_size = paper_size
+        self.margin_size = margin_size
+        self.alignment = alignment
 
     def run(self):
         try:
@@ -28,7 +31,11 @@ class ExcelConvertWorker(QThread):
                 def lote_callback(current_in_batch, total_in_batch):
                     self.progress.emit(self.total_converted + current_in_batch, total_archivos)
                     
-                resultados = convert_excel_batch(lote, self.output_dir, self.orientation, callback=lote_callback)
+                resultados = convert_excel_batch(
+                    lote, self.output_dir, self.orientation, 
+                    self.paper_size, self.margin_size, self.alignment,
+                    callback=lote_callback
+                )
                 self.total_converted += len(lote)
                 return resultados
 
@@ -69,15 +76,39 @@ class ExcelConvertTab(QWidget):
         
         layout.addLayout(h_layout_list)
 
+        # Configuration Options
+        h_layout_options = QHBoxLayout()
+        
         # Orientation
-        h_layout_orient = QHBoxLayout()
-        self.orient_label = QLabel("Orientación:")
         self.orient_combo = QComboBox()
         self.orient_combo.addItems(["Vertical", "Horizontal"])
-        h_layout_orient.addWidget(self.orient_label)
-        h_layout_orient.addWidget(self.orient_combo)
-        h_layout_orient.addStretch()
-        layout.addLayout(h_layout_orient)
+        h_layout_options.addWidget(QLabel("Orientación:"))
+        h_layout_options.addWidget(self.orient_combo)
+        
+        # Paper Size
+        self.paper_combo = QComboBox()
+        self.paper_combo.addItems(["Carta", "Legal (Oficio)", "A4", "A3", "Ejecutivo"])
+        h_layout_options.addWidget(QLabel("Tamaño:"))
+        h_layout_options.addWidget(self.paper_combo)
+
+        # Margins
+        self.margin_combo = QComboBox()
+        self.margin_combo.addItems(["Sin márgenes (0cm)", "Estrechos (1.27cm)", "Normales (1.91cm)", "Anchos (2.54cm)"])
+        h_layout_options.addWidget(QLabel("Márgenes:"))
+        h_layout_options.addWidget(self.margin_combo)
+
+        # Alignment
+        self.align_combo = QComboBox()
+        self.align_combo.addItems([
+            "Arriba - Izquierda (Por defecto)", 
+            "Centrado Horizontal (Arriba)", 
+            "Centrado Vertical (Izquierda)", 
+            "Centrado Total (Medio)"
+        ])
+        h_layout_options.addWidget(QLabel("Alineación:"))
+        h_layout_options.addWidget(self.align_combo)
+        
+        layout.addLayout(h_layout_options)
 
         # Output Dir
         h_layout_out = QHBoxLayout()
@@ -118,6 +149,9 @@ class ExcelConvertTab(QWidget):
         excel_list = [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
         output_dir = self.output_edit.text()
         orientation = self.orient_combo.currentText()
+        paper_size = self.paper_combo.currentText()
+        margin_size = self.margin_combo.currentText()
+        alignment = self.align_combo.currentText()
 
         if not excel_list or not output_dir:
             QMessageBox.warning(self, "Advertencia", "Por favor añada archivos Excel y especifique el directorio de salida.")
@@ -129,7 +163,7 @@ class ExcelConvertTab(QWidget):
         self.run_btn.setEnabled(False)
         self.progress_bar.setValue(0)
         
-        self.worker = ExcelConvertWorker(excel_list, output_dir, orientation)
+        self.worker = ExcelConvertWorker(excel_list, output_dir, orientation, paper_size, margin_size, alignment)
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.on_finished)
         self.worker.error.connect(self.on_error)

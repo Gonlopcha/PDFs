@@ -2,7 +2,7 @@ import os
 import sys
 from typing import List, Callable, Optional
 
-def convert_excel_to_pdf(input_path: str, output_path: str, orientation: str = "Vertical", sheet_callback: Optional[Callable[[int, int], None]] = None):
+def convert_excel_to_pdf(input_path: str, output_path: str, orientation: str = "Vertical", paper_size: str = "Carta", margin_size: str = "Sin márgenes (0cm)", alignment: str = "Arriba - Izquierda (Por defecto)", sheet_callback: Optional[Callable[[int, int], None]] = None):
     """
     Convierte un archivo Excel a PDF. Cada hoja en una página, ajustado sin espacio blanco.
     """
@@ -26,6 +26,33 @@ def convert_excel_to_pdf(input_path: str, output_path: str, orientation: str = "
         xlLandscape = 2
         orientation_val = xlPortrait if orientation == "Vertical" else xlLandscape
         
+        paper_map = {
+            "Carta": 1,
+            "Legal (Oficio)": 5,
+            "A4": 9,
+            "A3": 8,
+            "Ejecutivo": 7
+        }
+        paper_val = paper_map.get(paper_size, 1)
+
+        margin_map = {
+            "Sin márgenes (0cm)": 0,
+            "Estrechos (1.27cm)": 36,
+            "Normales (1.91cm)": 54,
+            "Anchos (2.54cm)": 72
+        }
+        margin_val = margin_map.get(margin_size, 0)
+        
+        align_horiz = False
+        align_vert = False
+        if alignment == "Centrado Horizontal (Arriba)":
+            align_horiz = True
+        elif alignment == "Centrado Vertical (Izquierda)":
+            align_vert = True
+        elif alignment == "Centrado Total (Medio)":
+            align_horiz = True
+            align_vert = True
+        
         sheets_count = wb.Worksheets.Count
         
         for idx, sheet in enumerate(wb.Worksheets):
@@ -35,14 +62,17 @@ def convert_excel_to_pdf(input_path: str, output_path: str, orientation: str = "
                 sheet.PageSetup.FitToPagesTall = 1
                 sheet.PageSetup.Orientation = orientation_val
                 
-                sheet.PageSetup.PaperSize = 1
+                sheet.PageSetup.PaperSize = paper_val
                 
-                sheet.PageSetup.LeftMargin = 0
-                sheet.PageSetup.RightMargin = 0
-                sheet.PageSetup.TopMargin = 0
-                sheet.PageSetup.BottomMargin = 0
+                sheet.PageSetup.LeftMargin = margin_val
+                sheet.PageSetup.RightMargin = margin_val
+                sheet.PageSetup.TopMargin = margin_val
+                sheet.PageSetup.BottomMargin = margin_val
                 sheet.PageSetup.HeaderMargin = 0
                 sheet.PageSetup.FooterMargin = 0
+                
+                sheet.PageSetup.CenterHorizontally = align_horiz
+                sheet.PageSetup.CenterVertically = align_vert
                 
             except Exception as e:
                 print(f"No se pudo configurar la hoja {sheet.Name}: {e}")
@@ -65,7 +95,7 @@ def convert_excel_to_pdf(input_path: str, output_path: str, orientation: str = "
                 pass
         pythoncom.CoUninitialize()
 
-def convert_excel_batch(file_list: List[str], output_dir: str, orientation: str = "Vertical", callback: Optional[Callable[[float, int], None]] = None) -> List[str]:
+def convert_excel_batch(file_list: List[str], output_dir: str, orientation: str = "Vertical", paper_size: str = "Carta", margin_size: str = "Sin márgenes (0cm)", alignment: str = "Arriba - Izquierda (Por defecto)", callback: Optional[Callable[[float, int], None]] = None) -> List[str]:
     """
     Convierte múltiples archivos Excel a PDF.
     """
@@ -90,7 +120,7 @@ def convert_excel_batch(file_list: List[str], output_dir: str, orientation: str 
                 fraction = min(fraction, 0.9)
                 callback(i + fraction, total_files)
                 
-        convert_excel_to_pdf(input_path, out_path, orientation, sheet_callback=sheet_callback)
+        convert_excel_to_pdf(input_path, out_path, orientation, paper_size, margin_size, alignment, sheet_callback=sheet_callback)
         output_files.append(out_path)
         
         if callback:

@@ -83,16 +83,30 @@ def convert_excel_to_pdf(input_path: str, output_path: str, orientation: str = "
         wb.ExportAsFixedFormat(0, abs_output)
         
     finally:
+        # Explicitly delete COM objects to release them from memory
+        # before CoUninitialize is called. Otherwise, they hang around
+        # and keep the Excel process alive.
+        if 'sheet' in locals():
+            del sheet
+            
         if wb:
             try:
                 wb.Close(False)
             except:
                 pass
+            del wb
+            
         if excel:
             try:
                 excel.Quit()
             except:
                 pass
+            del excel
+            
+        # Force garbage collection to ensure COM objects are destroyed
+        import gc
+        gc.collect()
+        
         pythoncom.CoUninitialize()
 
 def convert_excel_batch(file_list: List[str], output_dir: str, orientation: str = "Vertical", paper_size: str = "Carta", margin_size: str = "Sin márgenes (0cm)", alignment: str = "Arriba - Izquierda (Por defecto)", callback: Optional[Callable[[float, int], None]] = None) -> List[str]:

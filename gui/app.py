@@ -6,7 +6,7 @@ from gui.split_tab import SplitTab
 from gui.merge_tab import MergeTab
 from gui.convert_tab import ConvertTab
 from gui.excel_convert_tab import ExcelConvertTab
-
+from gui.image_to_pdf_tab import ImageToPdfTab
 
 def _find_icon():
     """Busca el icono en varias ubicaciones (desarrollo y compilado)."""
@@ -44,8 +44,10 @@ class PDFToolApp(QMainWindow):
         self.merge_tab = MergeTab()
         self.convert_tab = ConvertTab()
         self.excel_convert_tab = ExcelConvertTab()
+        self.image_to_pdf_tab = ImageToPdfTab()
         
         self.tabs.addTab(self.split_tab, "Split PDF")
         self.tabs.addTab(self.merge_tab, "Merge PDFs")
         self.tabs.addTab(self.convert_tab, "Convert to Word")
         self.tabs.addTab(self.excel_convert_tab, "Excel to PDF")
+        self.tabs.addTab(self.image_to_pdf_tab, "Images to PDF")
